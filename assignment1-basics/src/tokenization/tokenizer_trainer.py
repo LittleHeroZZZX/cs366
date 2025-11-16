@@ -4,7 +4,7 @@ from .types import PairCount, Vocab
 import tqdm
 
 
-class Tokenizer:
+class TokenizerTrainer:
     def __init__(
         self,
         corpos_path: str,
@@ -120,5 +120,5 @@ if __name__ == "__main__":
     path = "data/TinyStoriesV2-GPT4-valid.txt"
     vocab_size = 10000
     special_tokens = ["<|endoftext|>", "<|pad|>"]
-    tokenizer = Tokenizer(corpos_path=path, vocab_size=vocab_size, special_tokens=special_tokens)
+    tokenizer = TokenizerTrainer(corpos_path=path, vocab_size=vocab_size, special_tokens=special_tokens)
     print(tokenizer.train())
