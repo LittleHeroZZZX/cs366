@@ -63,25 +63,28 @@ class Tokenizer:
         merged_token = pair[0] + pair[1]
         self._add_token(merged_token)
 
-        new_pair_counts: PairCount = defaultdict(int)
-
         for pre_token, state in self.pre_token_states.items():
-            new_state = []
             idx = 0
-            while idx < len(state):
-                if idx < len(state) - 1 and (state[idx], state[idx + 1]) == pair:
-                    new_state.append(merged_token)
-                    idx += 2
-                else:
-                    new_state.append(state[idx])
-                    idx += 1
-            self.pre_token_states[pre_token] = new_state
+            state_len = len(state) - 1  # note: state_len is the index of last element
+            count = self.pre_token_count[pre_token]
 
-            for i in range(len(new_state) - 1):
-                new_pair = (new_state[i], new_state[i + 1])
-                new_pair_counts[new_pair] += self.pre_token_count[pre_token]
-
-        self.pair_counts = new_pair_counts
+            while idx < state_len:
+                if (state[idx], state[idx + 1]) == pair:
+                    state[idx] = merged_token
+                    state.pop(idx + 1)
+                    state_len -= 1
+                    last_token = state[idx - 1] if idx - 1 >= 0 else None
+                    next_token = state[idx + 1] if idx < state_len else None  # state_len is the index of last element
+                    if last_token is not None:
+                        last_pair = (last_token, merged_token)
+                        self.pair_counts[last_pair] += count
+                        self.pair_counts[(last_token, pair[0])] -= count
+                    if next_token is not None:
+                        next_pair = (merged_token, next_token)
+                        self.pair_counts[next_pair] += count
+                        self.pair_counts[(pair[1], next_token)] -= count
+                idx += 1
+        self.pair_counts.pop(pair, None)
 
     def _add_token(self, token: bytes) -> None:
         self.vocab[self.vocab_size] = token
