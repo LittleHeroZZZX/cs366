@@ -1,13 +1,16 @@
-from .types import PreTokenCount, Chunk, Token
-from collections import defaultdict
-from abc import ABC, abstractmethod
-from typing import BinaryIO
 import os
-import regex as re
-from logging import getLogger, basicConfig
-from multiprocessing import Pool, cpu_count
 import time
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from collections.abc import Iterator
+from logging import basicConfig, getLogger
+from multiprocessing import Pool, cpu_count
+from typing import BinaryIO
+
+import regex as re
 import tqdm
+
+from .types import Chunk, PreTokenCount, Token
 
 logger = getLogger(__name__)
 basicConfig(level="INFO")
@@ -91,6 +94,36 @@ class PreTokenizer(ABC):
                 pre_token = token_match.group()
                 pre_token_count[pre_token] += 1
         return pre_token_count
+
+    def pre_tokenize(self, str_bytes: bytes, special_token_list: list[Token]) -> Iterator[Token]:
+        """
+        Pre-tokenize the given bytes string.
+
+        Args:
+            str_bytes (bytes): The input bytes string to pre-tokenize.
+            special_token_list (list[Token]): The list of special tokens.
+        Returns:
+            Iterator[Token]: An iterator over the pre-tokens.
+        """
+        # TODO:
+        # 0. 特殊字符要通过 split 先分割出来
+        # 1. 按照从长到短排序
+        special_token_list = sorted(special_token_list, key=len, reverse=True)  # match longer tokens first
+        special_token_pattern = (
+            b"|".join([re.escape(token) for token in special_token_list]) if special_token_list else b""
+        )
+        special_token_pattern = b"(" + special_token_pattern + b")"
+        pattern = re.compile(rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
+        if special_token_list:
+            for mini_chunk in re.splititer(special_token_pattern, str_bytes):
+                if mini_chunk in special_token_list:
+                    yield mini_chunk
+                    continue
+                for token_match in re.finditer(pattern, mini_chunk):
+                    yield token_match.group()
+        else:
+            for token_match in re.finditer(pattern, str_bytes):
+                yield token_match.group()
 
     @abstractmethod
     def __call__(self, corpos_path: str, split_special_token: Token, special_tokens: list[Token]) -> PreTokenCount:
