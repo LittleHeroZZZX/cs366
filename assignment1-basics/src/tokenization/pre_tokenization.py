@@ -1,68 +1,20 @@
 import os
 import time
 from abc import ABC, abstractmethod
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterator
-from logging import basicConfig, getLogger
 from multiprocessing import Pool, cpu_count
-from typing import BinaryIO
 
 import regex as re
 import tqdm
+from line_profiler import profile
+from loguru import logger
 
-from .types import Chunk, PreTokenCount, Token
-
-logger = getLogger(__name__)
-basicConfig(level="INFO")
-
-
-def find_chunk_boundaries(
-    file: BinaryIO,
-    desired_num_chunks: int,
-    split_special_token: Token,
-) -> list[int]:
-    """
-    Chunk the file into parts that can be counted independently.
-    May return fewer chunks if the boundaries end up overlapping.
-    """
-    assert isinstance(split_special_token, bytes), "Must represent special token as a bytestring"
-
-    # Get total file size in bytes
-    file.seek(0, os.SEEK_END)
-    file_size = file.tell()
-    file.seek(0)
-
-    chunk_size = file_size // desired_num_chunks
-
-    # Initial guesses for chunk boundary locations, uniformly spaced
-    # Chunks start on previous index, don't include last index
-    chunk_boundaries = [i * chunk_size for i in range(desired_num_chunks + 1)]
-    chunk_boundaries[-1] = file_size
-
-    mini_chunk_size = 4096  # Read ahead by 4k bytes at a time
-
-    for bi in range(1, len(chunk_boundaries) - 1):
-        initial_position = chunk_boundaries[bi]
-        file.seek(initial_position)  # Start at boundary guess
-        while True:
-            mini_chunk = file.read(mini_chunk_size)  # Read a mini chunk
-
-            # If EOF, this boundary should be at the end of the file
-            if mini_chunk == b"":
-                chunk_boundaries[bi] = file_size
-                break
-
-            # Find the special token in the mini chunk
-            found_at = mini_chunk.find(split_special_token)
-            if found_at != -1:
-                chunk_boundaries[bi] = initial_position + found_at
-                break
-            initial_position += mini_chunk_size
-
-    # Make sure all boundaries are unique, but might be fewer than desired_num_chunks
-    return sorted(set(chunk_boundaries))
+from ._types import Chunk, PreTokenCount, Token
+from .utils import find_chunk_boundaries
 
 
+@profile
 class PreTokenizer(ABC):
     @staticmethod
     def _merge_pre_token_counts(*pre_token_counts: PreTokenCount) -> PreTokenCount:
@@ -88,11 +40,11 @@ class PreTokenizer(ABC):
             PreTokenCount: A dictionary-like object mapping pre-tokens to their counts.
         """
         pre_token_count: PreTokenCount = defaultdict(int)
-        pattern = rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        pattern = re.compile(rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
         for mini_chunk in re.split(b"|".join([re.escape(token) for token in special_tokens]), chunk):
-            for token_match in re.finditer(pattern, mini_chunk):
-                pre_token = token_match.group()
-                pre_token_count[pre_token] += 1
+            pre_tokens = Counter(re.findall(pattern, mini_chunk))
+            for pre_token, count in pre_tokens.items():
+                pre_token_count[pre_token] += count
         return pre_token_count
 
     def pre_tokenize(self, str_bytes: bytes, special_token_list: list[Token]) -> Iterator[Token]:
@@ -150,7 +102,7 @@ class NativePreTokenizer(PreTokenizer):
         with open(corpos_path, mode="br") as f:
             file_size = os.path.getsize(corpos_path)
             chunk_boundaries = find_chunk_boundaries(
-                file=f,
+                file_path=corpos_path,
                 desired_num_chunks=num_chunks,
                 split_special_token=split_special_token,
             )
@@ -164,8 +116,9 @@ class NativePreTokenizer(PreTokenizer):
                 for pre_token, count in chunk_pre_token_count.items():
                     pre_token_count[pre_token] += count
         end_time = time.time()
+
         logger.info(
-            "Takes %.2f seconds to pre-tokenize the corpus file %s, speed: %.2f bytes/second",
+            "Takes {:.2f} seconds to pre-tokenize the corpus file {:.2f}, speed: {:.2f} bytes/second",
             end_time - start_time,
             corpos_path,
             file_size / (end_time - start_time),
@@ -173,6 +126,7 @@ class NativePreTokenizer(PreTokenizer):
         return pre_token_count
 
 
+@profile
 class MultiProcessPreTokenizer(PreTokenizer):
     def _process_chunk_with_boundry(
         self, corpos_path: str, start: int, end: int, special_tokens: list[Token]
@@ -184,44 +138,47 @@ class MultiProcessPreTokenizer(PreTokenizer):
         return pre_token_count
 
     def __call__(self, corpos_path: str, split_special_token: Token, special_tokens: list[Token]) -> PreTokenCount:
-        pre_token_count: PreTokenCount = defaultdict(int)
+        final_pre_token_count: PreTokenCount = defaultdict(int)
 
         start_time = time.time()
-        with open(corpos_path, mode="br") as f:
-            file_size = os.path.getsize(corpos_path)
-            num_cpus = cpu_count()
-            chunk_boundaries = find_chunk_boundaries(
-                file=f,
-                desired_num_chunks=num_cpus,
-                split_special_token=split_special_token,
-            )
+        file_size = os.path.getsize(corpos_path)
+        num_cpus = cpu_count()
 
-            chunks = []
-            for i in range(len(chunk_boundaries) - 1):
-                start = chunk_boundaries[i]
-                end = chunk_boundaries[i + 1]
-                f.seek(start)
-                chunks.append((corpos_path, start, end, special_tokens))
+        desired_chunks = num_cpus * 100
 
-            with Pool(processes=num_cpus) as pool:
-                results = list(
-                    tqdm.tqdm(
-                        pool.starmap(self._process_chunk_with_boundry, chunks),
-                        total=len(chunks),
-                        desc="Pre-tokenizing corpus",
-                    )
-                )
+        chunk_boundaries = find_chunk_boundaries(
+            file_path=corpos_path,
+            desired_num_chunks=desired_chunks,
+            split_special_token=split_special_token,
+        )
 
-            pre_token_count = self._merge_pre_token_counts(*results)
+        chunks_args = []
+        for i in range(len(chunk_boundaries) - 1):
+            start = chunk_boundaries[i]
+            end = chunk_boundaries[i + 1]
+            chunks_args.append((corpos_path, start, end, special_tokens))
+
+        logger.info(f"Splitting task into {len(chunks_args)} chunks.")
+
+        with Pool(processes=num_cpus * 2) as pool:
+            chunk_iter = pool.imap_unordered(self._worker_wrapper, chunks_args)
+
+            for chunk_result in tqdm.tqdm(chunk_iter, total=len(chunks_args), desc="Pre-tokenizing"):
+                for token, count in chunk_result.items():
+                    final_pre_token_count[token] += count
 
         end_time = time.time()
         logger.info(
-            "Takes %.2f seconds to pre-tokenize the corpus file %s, speed: %.2f bytes/second",
+            "Takes {:.2f} seconds to pre-tokenize, speed: {:.2f} bytes/second",
             end_time - start_time,
-            corpos_path,
             file_size / (end_time - start_time),
         )
-        return pre_token_count
+        return final_pre_token_count
+
+    @staticmethod
+    def _worker_wrapper(args):
+        tokenizer_instance = MultiProcessPreTokenizer()
+        return tokenizer_instance._process_chunk_with_boundry(*args)
 
 
 if __name__ == "__main__":

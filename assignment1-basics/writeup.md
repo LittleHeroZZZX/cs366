@@ -1,3 +1,5 @@
+# Writeup for Assignment 1: Basics of Language Modeling and Tokenization
+
 ## Problem (unicode1): Understanding Unicode
 
 > (a) What Unicode character does chr(0) return?
@@ -49,3 +51,107 @@ multi-byte encodings will not be decoded correctly.
 [0xFF, 0xFF] 这个字节序列无法解码为任何 Unicode 字符，因为这是一个无效的起始字节。
 
 The byte sequence [0xFF, 0xFF] can't be decoded to any Unicode character, as it is an invalid leading byte.
+
+## Problem (train_bpe_tinystories): BPE Training on TinyStories (2 points)
+>
+> (a) Train a byte-level BPE tokenizer on the TinyStories dataset, using a maximum vocabulary size
+> of 10,000. Make sure to add the TinyStories <|endoftext|> special token to the vocabulary.
+> Serialize the resulting vocabulary and merges to disk for further inspection. How many hours
+> and memory did training take? What is the longest token in the vocabulary? Does it make sense?
+> Resource requirements: ≤30 minutes (no GPUs), ≤ 30GB RAM
+> Hint You should be able to get under 2 minutes for BPE training using multiprocessing during
+> pretokenization and the following two facts:
+>
+> (a) The <|endoftext|> token delimits documents in the data files.
+>
+> (b) The <|endoftext|> token is handled as a special case before the BPE merges are applied.
+
+使用 `time -v` 命令测量训练时间和内存使用情况，总耗时 15 秒，最大内存使用量为 154 MB，
+最长的 token 长度为 15，有三个：`[b' responsibility', b' disappointment', b' accomplishment']`，符合预期，这是一些较长且常见的英文单词。
+
+``` text
+Command being timed: "python cli.py data/TinyStoriesV2-GPT4-train.txt --vocab_size=10000"
+Elapsed (wall clock) time (h:mm:ss or m:ss): 0:15.76
+Maximum resident set size (kbytes): 154720
+```
+
+Using the `time -v` command to measure training time and memory usage,
+the total time taken was 15 seconds, with a maximum memory
+usage of 154 MB. The longest token length is 15, with three tokens:
+`[b' responsibility', b' disappointment', b' accomplishment']`, which makes sense
+as it is a relatively long and common English word.
+
+> (b) Profile your code. What part of the tokenizer training process takes the most time?
+
+使用 line-profiler 对代码进行分析，主要瓶颈在于 预分词阶段 占据了 99% 的时间
+
+Profiling the code with line-profiler reveals that the main bottleneck
+lies in maintaining various data structures during the BPE merge process.
+
+## Problem (train_bpe_expts_owt): BPE Training on OpenWebText (2 points)
+
+> (a) Train a byte-level BPE tokenizer on the OpenWebText dataset, using a maximum vocabulary
+> size of 32,000. Serialize the resulting vocabulary and merges to disk for further inspection. What
+> is the longest token in the vocabulary? Does it make sense?
+> Resource requirements: ≤12 hours (no GPUs), ≤ 100GB RAM
+
+使用 `time -v` 命令测量训练时间和内存使用情况，总耗时 2 分 22 秒，最大内存使用量为 2.06 GB，
+最长的 token 长度为64，有两个：
+`[b'----------------------------------------------------------------', b'\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82']` ，前者可能是 markdown 文档的分割线，后者尚不明确其可解释性，怀疑与 UTF-8 编码格式有关。
+
+``` text
+Command being timed: "python cli.py data/owt_train.txt --vocab_size=32000"
+Elapsed (wall clock) time (h:mm:ss or m:ss): 2:22.77
+Maximum resident set size (kbytes): 2061540
+```
+
+Using the `time -v` command to measure training time and memory usage,
+the total time taken was 2 minutes and 22 seconds, with a maximum memory
+usage of 2.06 GB. The longest token length is 64, with two tokens:
+`[b'----------------------------------------------------------------', b'\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82']`.
+The former is likely a markdown document separator, while the latter's interpretability is unclear,
+suspected to be related to the UTF-8 encoding format.
+
+> (b) Compare and contrast the tokenizer that you get training on TinyStories versus OpenWebText.
+
+训练出的两个 tokenizer 具有较大的重合度，TinyStories 词表中有 7321 个 token 出现在 OpenWebText
+词表中，5177 个 merges 出现在 OpenWebText merges 中。
+
+The two trained tokenizers have a significant overlap, with 7321 tokens from the TinyStories vocabulary
+appearing in the OpenWebText vocabulary, and 5177 merges appearing in the OpenWebText merges.
+
+## Problem (tokenizer_experiments): Experiments with tokenizers (4 points)
+
+> (a) Sample 10 documents from TinyStories and OpenWebText. Using your previously-trained TinyS-
+> tories and OpenWebText tokenizers (10K and 32K vocabulary size, respectively), encode these
+> sampled documents into integer IDs. What is each tokenizer’s compression ratio (bytes/token)?
+
+各种情况压缩率如下表所示：
+
+| Dataset        | TinyStories Tokenizer | OpenWebText Tokenizer |
+|----------------|-----------------------|-----------------------|
+| TinyStories    | 4.01                  | 3.87                  |
+| OpenWebText    | 3.40                  | 4.51                  |
+
+> (b) What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer? Com-
+> pare the compression ratio and/or qualitatively describe what happens.
+
+在与训练集同分布的数据上进行分词时，压缩率更高。OpenWebText 的压缩率整体比 TinyStories 高，一方面
+是因为它词汇表更大，另一方面，其语料库来自互联网，更加丰富。
+
+> (c) Estimate the throughput of your tokenizer (e.g., in bytes/second). How long would it take to
+> tokenize the Pile dataset (825GB of text)?
+>
+
+吞吐量约为 23 MB/s，处理 825 GB 的 Pile 数据集大约需要 35 小时，好在这个过程是可以并行进行的。
+
+The throughput is approximately 23 MB/s, so processing the 825 GB Pile dataset would take around 35 hours, fortunately this process can be parallelized.
+
+> (d) Using your TinyStories and OpenWebText tokenizers, encode the respective training and
+> development datasets into a sequence of integer token IDs. We’ll use this later to train our language
+> model. We recommend serializing the token IDs as a NumPy array of datatype uint16. Why is
+> uint16 an appropriate choice?
+
+uint16 可以表示从 0 到 65535 的整数范围，而我们的词汇表大小分别为 10,000 和 32,000，绰绰有余。
+
+uint16 can represent integers in the range from 0 to 65535, which is more than sufficient for our vocabulary sizes of 10,000 and 32,000 respectively

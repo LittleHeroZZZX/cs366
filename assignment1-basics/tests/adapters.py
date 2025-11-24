@@ -287,7 +287,7 @@ def run_transformer_lm(
     weights: dict[str, Tensor],
     in_indices: Int[Tensor, " batch_size sequence_length"],
 ) -> Float[Tensor, " batch_size sequence_length vocab_size"]:
-    """Given the weights of a Transformer language model and input indices,
+    r"""Given the weights of a Transformer language model and input indices,
     return the output of running a forward pass on the input indices.
 
     This function should use RoPE.
@@ -559,7 +559,13 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    raise NotImplementedError
+    from src.tokenization.tokenizer import Tokenizer
+
+    return Tokenizer(
+        vocab=vocab,
+        merges=merges,
+        special_tokens=special_tokens,
+    )
 
 
 def run_train_bpe(
@@ -589,9 +595,9 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    from src.tokenization.tokenizer_trainer import TokenizerTrainer
+    from src.tokenization.tokenizer_trainer import TokenizerTrainerC
 
-    tokenizer = TokenizerTrainer(
+    tokenizer = TokenizerTrainerC(
         corpos_path=str(input_path),
         vocab_size=vocab_size,
         special_tokens=special_tokens,
