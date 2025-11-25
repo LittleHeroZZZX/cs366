@@ -1,3 +1,3 @@
-from .basic import Embedding, Linear
+from .basic import Embedding, Linear, RMSNorm
 
-__all__ = ["Linear", "Embedding"]
+__all__ = ["Linear", "Embedding", "RMSNorm"]

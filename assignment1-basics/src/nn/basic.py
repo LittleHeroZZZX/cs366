@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.nn import Module, Parameter
 from torch import Tensor
+from torch.nn import Module, Parameter
 
 
 class Linear(Module):
@@ -57,3 +57,32 @@ class Embedding(Module):
     def forward(self, token_ids: Tensor):
         out_shape = (*token_ids.shape, self.embedding_dim)
         return self.embeds[token_ids.flatten(), :].reshape(out_shape)
+
+
+class RMSNorm(Module):
+    d_model: int
+    eps: float
+    weights: Parameter
+
+    def __init__(
+        self,
+        d_model: int,
+        eps: float = 1e-5,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+
+        self.d_model = d_model
+        self.eps = eps
+
+        self.weights = Parameter(torch.empty((d_model,), dtype=dtype, device=device))
+
+    def _reset_param(self):
+        nn.init.constant_(self.weights, 1)
+
+    def forward(self, x: Tensor):
+        dtype = x.dtype
+        x = x.float()
+        rms = ((x * x).sum(-1, keepdim=True) / self.d_model + self.eps) ** 0.5
+        return (x / rms).to(dtype) * self.weights

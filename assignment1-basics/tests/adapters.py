@@ -56,10 +56,10 @@ def run_embedding(
     """
 
     from src.nn import Embedding
+
     layer = Embedding(vocab_size, d_model, device=weights.device, dtype=weights.dtype)
     layer.embeds = torch.nn.Parameter(weights)
     return layer(token_ids)
-
 
 
 def run_swiglu(
@@ -386,7 +386,11 @@ def run_rmsnorm(
         Float[Tensor,"... d_model"]: Tensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
-    raise NotImplementedError
+    from src.nn import RMSNorm
+
+    layer = RMSNorm(d_model, eps)
+    layer.weights = torch.nn.Parameter(weights)
+    return layer(in_features)
 
 
 def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
