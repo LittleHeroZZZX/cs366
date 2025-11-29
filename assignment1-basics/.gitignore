@@ -166,4 +166,4 @@ data/
 
 compile_commands.json
 save/
-*.so
+.so

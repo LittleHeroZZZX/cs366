@@ -3,6 +3,8 @@ import torch.nn as nn
 from torch import Tensor
 from torch.nn import Module, Parameter
 
+from .utils import rotate_half
+
 
 class Linear(Module):
     in_features: int
@@ -86,3 +88,34 @@ class RMSNorm(Module):
         x = x.float()
         rms = ((x * x).sum(-1, keepdim=True) / self.d_model + self.eps) ** 0.5
         return (x / rms).to(dtype) * self.weights
+
+
+class RotaryPositionalEmbedding(Module):
+    theta: int
+    in_features: int
+    max_deq_len: int
+    cos: Tensor
+    sin: Tensor
+
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
+        super().__init__()
+        self.in_features = d_k
+        self.max_deq_len = max_seq_len
+
+        inv_freq = (
+            theta ** (torch.arange(0, self.in_features, 2, dtype=torch.float32, device=device) / -self.in_features)
+        ).unsqueeze(1)
+        inv_freq = inv_freq.expand(-1, 2).reshape(1, self.in_features)
+        angles = torch.arange(self.max_deq_len, device=device, dtype=torch.float32).unsqueeze(1)
+        angles = angles @ inv_freq
+
+        cos = angles.cos()
+        sin = angles.sin()
+        # cos, sin: shape of [max_seq_len, in_features]
+
+        self.register_buffer("sin", sin, persistent=False)
+        self.register_buffer("cos", cos, persistent=False)
+
+    def forward(self, x: Tensor, position_ids: Tensor):
+        cos, sin = self.cos[position_ids, :], self.sin[position_ids, :]
+        return x * cos + rotate_half(x) * sin
