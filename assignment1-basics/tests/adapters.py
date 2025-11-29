@@ -111,7 +111,9 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
-    raise NotImplementedError
+    from src.nn.functional import scaled_dot_production_attention
+
+    return scaled_dot_production_attention(Q, K, V, mask)
 
 
 def run_multihead_self_attention(
@@ -445,7 +447,9 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+    from src.nn.functional import softamx
+
+    return softamx(in_features, dim)
 
 
 def run_cross_entropy(

@@ -32,7 +32,7 @@ class Linear(Module):
         nn.init.trunc_normal_(self.weights, mean=0, std=std, a=-3 * std, b=3 * std)
 
     def forward(self, x: Tensor) -> Tensor:
-        return x @ self.weights.T
+        return x @ self.weights.mT
 
 
 class Embedding(Module):

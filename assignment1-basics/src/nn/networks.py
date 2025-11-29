@@ -1,6 +1,6 @@
 import torch
-
 from torch import Tensor, nn
+
 from .basic import Linear
 
 
