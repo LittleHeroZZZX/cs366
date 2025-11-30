@@ -298,12 +298,13 @@ def run_transformer_block(
         running the Transformer block on the input features while using RoPE.
     """
     from src.nn import TransformerBlock
-    layer = TransformerBlock(d_model, d_ff, num_heads, max_seq_len, theta, device=in_features.device, dtype=in_features.dtype)
-    layer.mha.qkv_proj.weights.data = torch.cat([
-        weights["attn.q_proj.weight"],
-        weights["attn.k_proj.weight"],
-        weights["attn.v_proj.weight"]
-    ], dim=0)
+
+    layer = TransformerBlock(
+        d_model, d_ff, num_heads, max_seq_len, theta, device=in_features.device, dtype=in_features.dtype
+    )
+    layer.mha.qkv_proj.weights.data = torch.cat(
+        [weights["attn.q_proj.weight"], weights["attn.k_proj.weight"], weights["attn.v_proj.weight"]], dim=0
+    )
     layer.mha.out_proj.weights.data = weights["attn.output_proj.weight"]
     layer.norm1.weights.data = weights["ln1.weight"]
     layer.norm2.weights.data = weights["ln2.weight"]
@@ -392,7 +393,38 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    from src.nn import TransformerLM
+
+    layer = TransformerLM(
+        vocab_size,
+        context_length,
+        num_layers,
+        d_model,
+        d_ff,
+        num_heads,
+        rope_theta,
+        device=in_indices.device,
+    )
+    layer.embed.embeds.data = weights["token_embeddings.weight"]
+    layer.lm_head.weights.data = weights["lm_head.weight"]
+    for i in range(num_layers):
+        block = layer.layers[i]
+        block.mha.qkv_proj.weights.data = torch.cat(
+            [
+                weights[f"layers.{i}.attn.q_proj.weight"],
+                weights[f"layers.{i}.attn.k_proj.weight"],
+                weights[f"layers.{i}.attn.v_proj.weight"],
+            ],
+            dim=0,
+        )
+        block.mha.out_proj.weights.data = weights[f"layers.{i}.attn.output_proj.weight"]
+        block.norm1.weights.data = weights[f"layers.{i}.ln1.weight"]
+        block.norm2.weights.data = weights[f"layers.{i}.ln2.weight"]
+        block.ffn.linear1.weights.data = weights[f"layers.{i}.ffn.w1.weight"]
+        block.ffn.linear2.weights.data = weights[f"layers.{i}.ffn.w3.weight"]
+        block.ffn.linear3.weights.data = weights[f"layers.{i}.ffn.w2.weight"]
+    layer.post_norm.weights.data = weights["ln_final.weight"]
+    return layer(in_indices)
 
 
 def run_rmsnorm(
@@ -472,9 +504,9 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    from src.nn.functional import softamx
+    from src.nn.functional import softmax
 
-    return softamx(in_features, dim)
+    return softmax(in_features, dim)
 
 
 def run_cross_entropy(

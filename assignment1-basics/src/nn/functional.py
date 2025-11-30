@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 
 
-def softamx(x: Tensor, dim: int = -1):
+def softmax(x: Tensor, dim: int = -1):
     x_temp = x - torch.amax(x, dim=dim, keepdim=True)
     exp = x_temp.exp()
     return exp / exp.sum(dim=dim, keepdim=True)
@@ -22,4 +22,4 @@ def scaled_dot_production_attention(query: Tensor, key: Tensor, value: Tensor, a
     if attn_mask is not None:
         score = torch.where(attn_mask, score, torch.full_like(score, -torch.inf))
 
-    return softamx(score) @ value
+    return softmax(score) @ value

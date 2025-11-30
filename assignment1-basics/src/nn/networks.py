@@ -1,7 +1,8 @@
 import torch
 from torch import Tensor, nn
 
-from .basic import Linear, RMSNorm, MultiheadSelfAttention
+from .basic import Linear, RMSNorm, MultiheadSelfAttention, Embedding
+from . import functional as F
 
 
 class SwiGLU(nn.Module):
@@ -85,5 +86,42 @@ class TransformerBlock(nn.Module):
         x = self.ffn(self.norm2(x)) + x
         return x
 
+
 class TransformerLM(nn.Module):
-    
+    def __init__(
+        self,
+        vocab_size: int,
+        context_length: int,
+        num_layers: int,
+        hidden_dim: int,
+        inner_dim: int,
+        num_heads: int,
+        theta: float,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+        factory_kawrgs = {"device": device, "dtype": dtype}
+
+        self.embed = Embedding(vocab_size, hidden_dim, **factory_kawrgs)
+        self.layers = [
+            TransformerBlock(hidden_dim, inner_dim, num_heads, context_length, theta, **factory_kawrgs)
+            for _ in range(num_layers)
+        ]
+        self.post_norm = RMSNorm(hidden_dim)
+        self.lm_head = Linear(hidden_dim, vocab_size, **factory_kawrgs)
+
+    def _reset_params(self):
+        self.embed._reset_param()
+        for layer in self.layers:
+            layer._reset_params()
+        self.post_norm._reset_param()
+        self.lm_head._reset_params()
+
+    def forward(self, x: Tensor):
+        embeds = self.embed(x)
+        for layer in self.layers:
+            embeds = layer(embeds)
+        embeds = self.post_norm(embeds)
+        logits = self.lm_head(embeds)
+        return logits
