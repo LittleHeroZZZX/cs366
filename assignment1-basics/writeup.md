@@ -220,7 +220,6 @@ As the model size increases:
 - The proportion of Attention computation remains around 30%.
 - The proportion of SwiGLU computation gradually increases, consistently dominating.
 
-
 > (e) Take GPT-2 XL and increase the context length to 16,384. How does the total FLOPs for one
 > forward pass change? How do the relative contribution of FLOPs of the model components
 > change?
@@ -228,3 +227,15 @@ As the model size increases:
 当模型上下文长度增加为 16 倍后，总计算量从 4.514 TFLOPs 增加到 149.52 TFLOPs，增加了约 33。 其中，Attention 操作中的自注意力部分与序列长度平方成正比，其计算量增加了 256 倍，其余部分与序列长度线性成正比，增加了 16 倍， 该操作对于计算量的提升贡献最大。
 
 When the model context length is increased by 16 times, the total computation increases from 4.514 TFLOPs to 149.52 TFLOPs, an increase of about 33 times. Among them, the self-attention part in the Attention operation is proportional to the square of the sequence length, and its computation increases by 256 times, while the other parts are linearly proportional to the sequence length, increasing by 16 times. This operation contributes the most to the increase in computation.
+
+## Problem (learning_rate_tuning): Tuning the learning rate (1 point)
+>
+> As we will see, one of the hyperparameters that affects training the most is the learning rate. Let’s
+> see that in practice in our toy example. Run the SGD example above with three other values for the
+> learning rate: 1e1, 1e2, and 1e3, for just 10 training iterations. What happens with the loss for each
+> of these learning rates? Does it decay faster, slower, or does it diverge (i.e., increase over the course of
+> training)
+
+随着学习率变大，loss 下降得更快，但当学习率过大时（如 1e3），loss 在训练过程中会发散。
+
+As the learning rate increases, the loss decreases faster, but when the learning rate is too high (e.g., 1e3), the loss diverges during training.

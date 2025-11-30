@@ -1,5 +1,6 @@
 import sys
 import timeit
+import torch
 from pathlib import Path
 from typing import Annotated
 
@@ -8,6 +9,7 @@ import typer
 from loguru import logger
 
 from src.tokenization.tokenizer_trainer import TokenizerTrainer, TokenizerTrainerC
+from pprint import pprint
 
 app = typer.Typer(help="Tokenizer 训练与评估工具")
 
@@ -217,6 +219,28 @@ def encode_file(
     # out.tofile(output_path)
 
     logger.info(f"Encoded output saved to: {output}")
+
+
+@app.command()
+def learning_rate_tuning():
+    from src.nn.optimizer import SGD
+
+    weights = torch.nn.Parameter(5 * torch.randn((10, 10)))
+    lr_list = [10, 100, 1000]
+    res = {}
+    for lr in lr_list:
+        weights_copy = weights.clone().detach().requires_grad_(True)
+        opt = SGD([weights_copy], lr=lr)
+        res[lr] = []
+        for _ in range(10):
+            opt.zero_grad()  # Reset the gradients for all learnable parameters.
+            loss = (weights_copy**2).mean()  # Compute a scalar loss value.
+            print(loss.cpu().item())
+            loss.backward()  # Run backward pass, which computes gradients.
+            opt.step()  # Run optimizer step.
+            res[lr].append(loss.cpu().item())
+    pprint("learning_rate_tuning on SGD:")
+    pprint(res)
 
 
 if __name__ == "__main__":

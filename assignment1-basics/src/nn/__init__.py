@@ -1,6 +1,7 @@
 from . import functional
 from .basic import Embedding, Linear, MultiheadSelfAttention, RMSNorm, RotaryPositionalEmbedding
 from .networks import SwiGLU, TransformerBlock, TransformerLM
+from .optimizer import SGD
 
 __all__ = [
     "Linear",
@@ -12,4 +13,5 @@ __all__ = [
     "MultiheadSelfAttention",
     "TransformerBlock",
     "TransformerLM",
+    "SGD"
 ]
