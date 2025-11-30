@@ -1,6 +1,6 @@
 from . import functional
 from .basic import Embedding, Linear, MultiheadSelfAttention, RMSNorm, RotaryPositionalEmbedding
-from .networks import SwiGLU
+from .networks import SwiGLU, TransformerBlock
 
 __all__ = [
     "Linear",
@@ -10,4 +10,5 @@ __all__ = [
     "RotaryPositionalEmbedding",
     "functional",
     "MultiheadSelfAttention",
+    "TransformerBlock",
 ]
