@@ -1,15 +1,15 @@
 import sys
 import timeit
-import torch
 from pathlib import Path
+from pprint import pprint
 from typing import Annotated
 
 import regex as re
+import torch
 import typer
 from loguru import logger
 
 from src.tokenization.tokenizer_trainer import TokenizerTrainer, TokenizerTrainerC
-from pprint import pprint
 
 app = typer.Typer(help="Tokenizer 训练与评估工具")
 
