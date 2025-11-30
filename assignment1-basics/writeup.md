@@ -155,3 +155,76 @@ The throughput is approximately 23 MB/s, so processing the 825 GB Pile dataset w
 uint16 可以表示从 0 到 65535 的整数范围，而我们的词汇表大小分别为 10,000 和 32,000，绰绰有余。
 
 uint16 can represent integers in the range from 0 to 65535, which is more than sufficient for our vocabulary sizes of 10,000 and 32,000 respectively
+
+## Problem (transformer_accounting): Transformer LM resource accounting (5 points)
+>
+> (a) Consider GPT-2 XL, which has the following configuration:
+> vocab_size : 50,257
+> context_length : 1,024
+> num_layers : 48
+> d_model : 1,600
+> num_heads : 25
+> d_ff : 6,400
+> Suppose we constructed our model using this configuration. How many trainable parameters
+> would our model have? Assuming each parameter is represented using single-precision floating
+> point, how much memory is required to just load this model?
+
+各组件和模型参数量、矩阵乘法 FLOPs 如下表所示：
+
+| Module              | Linear            | Embedding      | RMSNorm | RoPE | MHA                                       | SwiGLU                  | TransformerBlock                                                    | TransformerLM                                                                                                     |
+|---------------------|-------------------|----------------|---------|------|-------------------------------------------|-------------------------|---------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| Components          | \                 | \              | \       | \    | qkv_proj + out_proj + RoPE                | Linear * 3              | RMSNorm * 2 + MHA + SwiGLU                                          | Embedding + num_layers * TransformerBlock + RMSNorm + Linear                                                      |
+| Parameters          | in x out          | vocab_size x h | h       | 0    | 4h^2                                      | 3 x inner x h           | 2h + 4h^2 + 3 x inner x h                                           | 2 x vocab_size x h + num_layers x (2h + 4h^2 + 3 x inner x h) + h                                                 |
+| FLOPs (matmul only) | 2 x bs x in x out | 0              | 0       | 0    | 8 x seq_len x h^2 + 4 x L x seq_len^2 x h | 6 x seq_len x inner x h | 8 x seq_len x h^2 + 4 x L x seq_len^2 x h + 6 x seq_len x inner x h | 2 x seq_len x vocab_size x h + num_layers x (8 x seq_len x h^2 + 4 x L x seq_len^2 x h + 6 x seq_len x inner x h) |
+
+其中，seq_len 表示一个 batch 内序列总长度， bs 表示 batch size，h 表示 d_model，inner 表示 d_ff。
+
+计算得到 GPT-2 XL 模型的总参数量为 2.126e09，以 FP32 计算，约为 8.5 GB。
+
+Calculating the total number of parameters for the GPT-2 XL model yields 2.126e09, which is approximately 8.5 GB when using FP32.
+
+> (b) Identify the matrix multiplies required to complete a forward pass of our GPT-2 XL-shaped
+> model. How many FLOPs do these matrix multiplies require in total? Assume that our input
+> sequence has context_length tokens.
+
+根据上表， 计算得 Attention 部分 1.329 TFLOPs， SwiGLU 部分 3.020 TFLOPs， lm_head 部分 0.165 TFLOPs，总计 4.514 TFLOPs。
+
+Based on the table above, the Attention part requires 1.329 TFLOPs, the SwiGLU part requires 3.020 TFLOPs, and the lm_head part requires 0.165 TFLOPs, totaling 4.514 TFLOPs.
+
+> (c) Based on your analysis above, which parts of the model require the most FLOPs?
+
+比重最大的部分为 SwiGLU，占总 FLOPs 的 66.9%。
+The part with the largest proportion is SwiGLU, accounting for 66.9% of the total FLOPs.
+
+> (d) Repeat your analysis with GPT-2 small (12 layers, 768 d_model, 12 heads), GPT-2 medium (24
+> layers, 1024 d_model, 16 heads), and GPT-2 large (36 layers, 1280 d_model, 20 heads). As the
+> model size increases, which parts of the Transformer LM take up proportionally more or less of
+> the total FLOPs?
+
+| Model  | Attention | SwiGLU| LM Head| Total FLOPs | SwiGLU % | Attention % | Head %  |
+|--------|-----------|-----------------|----------------|-------------|----------|-------------|---------|
+| Small  | 0.097     | 0.174           | 0.079          | 0.35        | 49.70%   | 27.70%      | 22.60%  |
+| Medium | 0.307     | 0.618           | 0.105          | 1.03        | 60.00%   | 29.80%      | 10.20%  |
+| Large  | 0.676     | 1.449           | 0.132          | 2.257       | 64.20%   | 30.00%      | 5.80%   |
+| XL     | 1.329     | 3.02            | 0.165          | 4.514       | 66.90%   | 29.40%      | 3.70%   |
+
+随着模型的增大：
+
+- lm_head 计算量线性增加，占比显著下降；
+- Attnion 计算量占比保持在 30% 左右；
+- SwiGLU 计算量占比逐渐上升，始终占据主导地位。
+
+As the model size increases:
+
+- The computation of lm_head increases linearly, with a significant decrease in proportion.
+- The proportion of Attention computation remains around 30%.
+- The proportion of SwiGLU computation gradually increases, consistently dominating.
+
+
+> (e) Take GPT-2 XL and increase the context length to 16,384. How does the total FLOPs for one
+> forward pass change? How do the relative contribution of FLOPs of the model components
+> change?
+
+当模型上下文长度增加为 16 倍后，总计算量从 4.514 TFLOPs 增加到 149.52 TFLOPs，增加了约 33。 其中，Attention 操作中的自注意力部分与序列长度平方成正比，其计算量增加了 256 倍，其余部分与序列长度线性成正比，增加了 16 倍， 该操作对于计算量的提升贡献最大。
+
+When the model context length is increased by 16 times, the total computation increases from 4.514 TFLOPs to 149.52 TFLOPs, an increase of about 33 times. Among them, the self-attention part in the Attention operation is proportional to the square of the sequence length, and its computation increases by 256 times, while the other parts are linearly proportional to the sequence length, increasing by 16 times. This operation contributes the most to the increase in computation.
