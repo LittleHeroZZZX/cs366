@@ -1,4 +1,5 @@
 import math
+from collections.abc import Iterable
 
 import torch
 from torch import Tensor
@@ -24,3 +25,17 @@ def get_lr_cosine_schedule(t: int, lr_max: float, lr_min: float, t_warmup: int, 
     else:
         lr = lr_min
     return lr
+
+
+@torch.no_grad()
+def gradient_clipping(params: Iterable[torch.nn.Parameter], max_norm: float, eps=1e-6) -> None:
+    grads: tuple = tuple(p.grad for p in params if p.grad is not None)
+    square_sum = torch.tensor(0.0, device=grads[0].device)
+
+    for g in grads:
+        square_sum += torch.sum(g**2)
+    norm_all = square_sum.sqrt()
+    if norm_all > max_norm:
+        clip_coef = max_norm / (norm_all + eps)
+        for g in grads:
+            g.mul_(clip_coef)
