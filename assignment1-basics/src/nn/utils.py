@@ -1,6 +1,10 @@
 import math
+import os
+import typing
 from collections.abc import Iterable
 
+import numpy as np
+import numpy.typing as npt
 import torch
 from torch import Tensor
 
@@ -39,3 +43,39 @@ def gradient_clipping(params: Iterable[torch.nn.Parameter], max_norm: float, eps
         clip_coef = max_norm / (norm_all + eps)
         for g in grads:
             g.mul_(clip_coef)
+
+
+def save_checkpoint(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    iteration: int,
+    out: str | os.PathLike | typing.BinaryIO | typing.IO[bytes],
+):
+    states = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "iteration": iteration,
+    }
+    torch.save(states, out)
+
+
+def load_checkpoint(
+    checkpoint: str | os.PathLike | typing.BinaryIO | typing.IO[bytes],
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+) -> int:
+    states = torch.load(checkpoint)
+    model.load_state_dict(states["model_state_dict"])
+    optimizer.load_state_dict(states["optimizer_state_dict"])
+    iteration = states["iteration"]
+    return iteration
+
+
+def load_batch(dataset: npt.NDArray, batch_size: int, context_size: int, device: torch.device):
+    max_start_index = dataset.shape[0] - context_size + 1
+    start_indices = np.random.randint(0, max_start_index - 1, size=batch_size)
+    x_batch = np.stack([dataset[i : i + context_size] for i in start_indices])
+    y_batch = np.stack([dataset[i + 1 : i + context_size + 1] for i in start_indices])
+    x_tensor = torch.tensor(x_batch, device=device)
+    y_tensor = torch.tensor(y_batch, device=device)
+    return x_tensor, y_tensor
