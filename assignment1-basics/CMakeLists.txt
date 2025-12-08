@@ -7,15 +7,32 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 
-# 寻找 Python
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 
-# 寻找 Pybind11
-# 如果 pybind11 安装在非标准路径，可能需要设置 pybind11_DIR
 find_package(pybind11 REQUIRED)
 
 # 寻找 Boost (Header only libraries)
-find_package(Boost REQUIRED)
+# 替换原来的 find_package(Boost REQUIRED)
+find_package(Boost QUIET)
+
+if(NOT Boost_FOUND)
+    message(FATAL_ERROR "\n"
+        "  \n"
+        "  ❌ 错误：编译中止，未在系统中找到 Boost 库！\n"
+        "  -------------------------------------------------------\n"
+        "  本项目依赖 Boost C++ 库，请根据您的操作系统运行以下命令进行安装：\n"
+        "  \n"
+        "  👉 [Ubuntu / Debian]:\n"
+        "       sudo apt-get update && sudo apt-get install libboost-all-dev\n"
+        "  \n"
+        "  👉 [CentOS / RHEL / Fedora]:\n"
+        "       sudo yum install boost-devel\n"
+        "  \n"
+        "  👉 [macOS (Homebrew)]:\n"
+        "       brew install boost\n"
+        "  -------------------------------------------------------\n"
+    )
+endif()
 
 # 创建 Python 模块
 # tokenizer_cpp 是模块名，必须与 PYBIND11_MODULE 中的名字一致
@@ -25,21 +42,16 @@ pybind11_add_module(tokenizer_cpp csrc/tokenizer_trainer.cc)
 target_link_libraries(tokenizer_cpp PRIVATE Boost::boost)
 
 # 优化选项 (Release 模式下)
-# if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
+if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
 target_compile_options(tokenizer_cpp PRIVATE -O3)
-# endif()
+endif()
+
+install(TARGETS tokenizer_cpp DESTINATION .)
 
 
 # copy compile_commands.json to project root
 add_custom_command(TARGET tokenizer_cpp 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     ${CMAKE_BINARY_DIR}/compile_commands.json
-    ${CMAKE_CURRENT_SOURCE_DIR}/../compile_commands.json
-)
-
-# copy so
-add_custom_command(TARGET tokenizer_cpp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    $<TARGET_FILE:tokenizer_cpp>
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/tokenizer_cpp${CMAKE_SHARED_LIBRARY_SUFFIX}
+    ${CMAKE_CURRENT_SOURCE_DIR}/compile_commands.json
 )
