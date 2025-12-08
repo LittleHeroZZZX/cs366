@@ -250,5 +250,29 @@ def train_model(config: str):
     train.train(config)
 
 
+@app.command()
+def decode(
+    model_path: Annotated[str, typer.Argument(help="Path to the trained model directory")],
+    tokenizer_path: Annotated[str, typer.Argument(help="Path to the tokenizer directory")],
+    prompt: Annotated[str, typer.Argument(help="Prompt text to start generation")],
+    max_length: Annotated[int, typer.Argument(help="Maximum length of generated text")] = 100,
+    temperature: Annotated[float, typer.Option(help="Sampling temperature")] = 1.0,
+    p: Annotated[float, typer.Option(help="Nucleus sampling probability threshold")] = 0.9,
+    checkpoint_number: Annotated[int | None, typer.Option(help="Checkpoint number to load")] = None,
+):
+    from src.nn.decode import decode
+
+    generated_text = decode(
+        prompt=prompt,
+        model_path=model_path,
+        tokenizer_path=tokenizer_path,
+        max_length=max_length,
+        temperature=temperature,
+        p=p,
+        checkpoint_number=checkpoint_number,
+    )
+    print("Generated Text:", generated_text)
+
+
 if __name__ == "__main__":
     app()

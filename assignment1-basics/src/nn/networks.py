@@ -1,7 +1,10 @@
+from typing import Self
+
 import torch
 from torch import Tensor, nn
 
 from .basic import Embedding, Linear, MultiheadSelfAttention, RMSNorm
+from .config import Config
 
 
 class SwiGLU(nn.Module):
@@ -126,3 +129,17 @@ class TransformerLM(nn.Module):
         embeds = self.post_norm(embeds)
         logits = self.lm_head(embeds)
         return logits
+
+    @classmethod
+    def from_config(cls, config: Config) -> Self:
+        return cls(
+            vocab_size=config.model.vocab_size,
+            context_length=config.model.context_length,
+            num_layers=config.model.num_layers,
+            hidden_dim=config.model.hidden_dim,
+            inner_dim=config.model.inner_dim,
+            num_heads=config.model.num_heads,
+            theta=config.model.theta,
+            device=torch.device(config.model.device),
+            dtype=getattr(torch, config.model.dtype),
+        )

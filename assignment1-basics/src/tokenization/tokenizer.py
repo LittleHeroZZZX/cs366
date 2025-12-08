@@ -166,7 +166,7 @@ class Tokenizer:
         return [list_id for sublist in ret for list_id in sublist]
 
     @classmethod
-    def from_my_save(cls, save_dir: str, special_tokens: list[str] | None = None) -> Self:
+    def from_my_save(cls, save_dir: str | Path, special_tokens: list[str] | None = None) -> Self:
         """
         Build a Tokenizer from custom saved vocab and merges files.
 
