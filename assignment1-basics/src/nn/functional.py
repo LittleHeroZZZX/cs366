@@ -26,7 +26,8 @@ def scaled_dot_production_attention(query: Tensor, key: Tensor, value: Tensor, a
 
 
 def cross_entropy_loss(logits: Tensor, target: Tensor) -> Tensor:
+    logits = logits.float()
     logits = logits - logits.amax(-1, keepdim=True)
-    target = target.unsqueeze(-1)
+    target = target.unsqueeze(-1).to(torch.int64)
     loss = -torch.gather(logits, -1, target) + torch.log(torch.exp(logits).sum(-1, keepdim=True))
     return loss.mean()

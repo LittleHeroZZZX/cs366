@@ -118,10 +118,11 @@ class RotaryPositionalEmbedding(Module):
         self.register_buffer("cos", cos, persistent=False)
 
     def forward(self, x: Tensor, position_ids: Tensor | None = None):
+        input_dtype = x.dtype
         if position_ids is None:
             position_ids = torch.arange(x.shape[-2], device=x.device)
         cos, sin = self.cos[position_ids, :], self.sin[position_ids, :]
-        return x * cos + rotate_half(x) * sin
+        return (x * cos + rotate_half(x) * sin).to(input_dtype)
 
 
 class MultiheadSelfAttention(Module):

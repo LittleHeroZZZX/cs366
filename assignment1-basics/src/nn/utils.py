@@ -76,6 +76,6 @@ def load_batch(dataset: npt.NDArray, batch_size: int, context_size: int, device:
     start_indices = np.random.randint(0, max_start_index - 1, size=batch_size)
     x_batch = np.stack([dataset[i : i + context_size] for i in start_indices])
     y_batch = np.stack([dataset[i + 1 : i + context_size + 1] for i in start_indices])
-    x_tensor = torch.tensor(x_batch, device=device)
-    y_tensor = torch.tensor(y_batch, device=device)
+    x_tensor = torch.tensor(x_batch, device=device, dtype=torch.int)
+    y_tensor = torch.tensor(y_batch, device=device, dtype=torch.int)
     return x_tensor, y_tensor

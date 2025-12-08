@@ -1,8 +1,7 @@
 import torch
 from torch import Tensor, nn
 
-from .basic import Linear, RMSNorm, MultiheadSelfAttention, Embedding
-from . import functional as F
+from .basic import Embedding, Linear, MultiheadSelfAttention, RMSNorm
 
 
 class SwiGLU(nn.Module):
@@ -104,11 +103,13 @@ class TransformerLM(nn.Module):
         factory_kawrgs = {"device": device, "dtype": dtype}
 
         self.embed = Embedding(vocab_size, hidden_dim, **factory_kawrgs)
-        self.layers = [
-            TransformerBlock(hidden_dim, inner_dim, num_heads, context_length, theta, **factory_kawrgs)
-            for _ in range(num_layers)
-        ]
-        self.post_norm = RMSNorm(hidden_dim)
+        self.layers = nn.ModuleList(
+            [
+                TransformerBlock(hidden_dim, inner_dim, num_heads, context_length, theta, **factory_kawrgs)
+                for _ in range(num_layers)
+            ]
+        )
+        self.post_norm = RMSNorm(hidden_dim, **factory_kawrgs)
         self.lm_head = Linear(hidden_dim, vocab_size, **factory_kawrgs)
 
     def _reset_params(self):

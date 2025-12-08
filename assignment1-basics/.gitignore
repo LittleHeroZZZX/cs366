@@ -167,3 +167,5 @@ data/
 compile_commands.json
 save/
 .so
+
+wandb/

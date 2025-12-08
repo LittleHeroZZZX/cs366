@@ -28,11 +28,9 @@ class Tokenizer:
 
         for token in self.special_tokens:
             if token not in self.vocab.values():
-                # 注意：这里可能会覆盖已有的 ID，实际生产中通常预留 ID
                 self.vocab[len(self.vocab)] = token
 
         self.token_to_id = {token: idx for idx, token in self.vocab.items()}
-        # 优化点 1: 创建 ranks 字典，O(1) 查找 pair 是否存在以及其优先级
         self.ranks = {pair: i for i, pair in enumerate(merges)}
 
         self.cache = LRUCache(maxsize=10000)

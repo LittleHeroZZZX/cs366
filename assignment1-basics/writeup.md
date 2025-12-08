@@ -239,3 +239,74 @@ When the model context length is increased by 16 times, the total computation in
 随着学习率变大，loss 下降得更快，但当学习率过大时（如 1e3），loss 在训练过程中会发散。
 
 As the learning rate increases, the loss decreases faster, but when the learning rate is too high (e.g., 1e3), the loss diverges during training.
+
+## Problem (adamwAccounting): Resource accounting for training with AdamW (2 points)
+
+> Let us compute how much memory and compute running AdamW requires. Assume we are using
+> float32 for every tensor.
+
+> (a) How much peak memory does running AdamW require? Decompose your answer based on the
+> memory usage of the parameters, activations, gradients, and optimizer state. Express your answer
+> in terms of the batch_size and the model hyperparameters (vocab_size, context_length,
+> num_layers, d_model, num_heads). Assume d_ff = 4 ×d_model.
+> For simplicity, when calculating memory usage of activations, consider only the following compo-
+> nents:
+>
+> - Transformer block
+>   - RMSNorm(s)
+>   - Multi-head self-attention sublayer: QKV projections, QK matrix multiply, softmax,
+> weighted sum of values, output projection.
+>   - Position-wise feed-forward: W1 matrix multiply, SiLU, W2 matrix multiply
+> - final RMSNorm
+> - output embedding
+> - cross-entropy on logits
+> Deliverable: An algebraic expression for each of parameters, activations, gradients, and opti-
+> mizer state, as well as the total.
+
+符号说明：
+
+- B: batch_size
+- L: num_layers
+- H: d_model
+- V: vocab_size
+- S: context_length
+- A: num_heads
+
+| Item / Componet | RMSNorm | QKV Projections | QK Matmul | softmax | Socre Value Matmul | Out Project | Pos-wise FFN | MHA      | Transformer Block | Embedding | Cross Entropy Loss | LM_head | TransformerLM       | Optimizer | Total                                    |
+|-----------------|---------|-----------------|-----------|---------|--------------------|-------------|--------------|----------|-------------------|-----------|--------------------|---------|---------------------|-----------|------------------------------------------|
+| Parameters      | H       | 3H^2            | 0         | 0       | 0                  | H^2         | 12H^2        | 4H^2     | 16H^2+2H          | VH        | 0                  | VH      | 2VH+16LH^2+2LH+H    | 0         | 2VH+16LH^2+2LH+H                         |
+| Activations     | BSH      | 3BSH             | BS^2       | BS^2     | BSH                 | BSH          | 13BSH         | 5BSH+2BS^2 | 20BSH+2BS^2         | BSH        | BS                  | BSV      | 2BSH+LB(20SH+2S^2)+BSV | SB         | 2BSH+LB(20SH+2S^2)+BSV+SB                   |
+| Gradients       | H       | 3H^2            | 0         | 0       | 0                  | H^2         | 12H^2        | 4H^2     | 16H^2+2H          | VH        | 0                  | VH      | 2VH+16LH^2+2LH+H    | 0         | 2VH+16LH^2+2LH+H                         |
+| Optimizer state | H       | 6H^2            | 0         | 0       | 0                  | 2H^2        | 24H^2        | 8H^2     | 32H^2+2H          | 2VH       | 0                  | 2VH     | 4VH+32LH^2+4LH+2H   | 0         | 4VH+32LH^2+4LH+2H                        |
+| Total           | \       | \               | \         | \       | \                  | \           | \            | \        | \                 | \         | \                  | \       | \                   | \         | 8VH+64LH^2+8LH+4H+2BSH+LB(20SH+2S^2)+SBV+SB  |
+
+> (b) Instantiate your answer for a GPT-2 XL-shaped model to get an expression that only depends on
+> the batch_size. What is the  batch size you can use and still fit within 80GB memory?
+
+| Item / Component | Total   |
+|------------------|---------|
+| Parameters       | 7.92    |
+| Activations      | 6.43B    |
+| Gradients        | 7.92    |
+| Optimizer state  | 15.84   |
+| Total            | 31.69+6.43B  |
+
+最大 batch size 约为 (80-31.68)/6.43 ≈ 7.51，即 7。
+
+Maximum batch size is approximately (80-31.68)/6.43 ≈ 7.51, i.e., 7.
+
+> (c) How many FLOPs does running one step of AdamW take?
+
+不会。
+
+
+
+> (d) Model FLOPs utilization (MFU) is defined as the ratio of observed throughput (tokens per second)
+> relative to the hardware’s theoretical peak FLOP throughput [Chowdhery et al., 2022]. An
+> NVIDIA A100 GPU has a theoretical peak of 19.5 teraFLOP/s for float32 operations. Assuming
+> you are able to get 50% MFU, how long would it take to train a GPT-2 XL for 400K steps and a
+> batch size of 1024 on a single A100? Following Kaplan et al. [2020] and Hoffmann et al. [2022],
+> assume that the backward pass has twice the FLOPs of the forward pass.
+> Deliverable: The number of days training would take, with a brief justification.
+
+不会。

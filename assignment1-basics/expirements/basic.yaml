@@ -1,0 +1,53 @@
+model:
+  vocab_size: 10000
+  # 上下文长度/序列最大长度 (Context length)
+  context_length: 256
+  # Transformer 块层数 (Number of Transformer layers)
+  num_layers: 4
+  # 隐藏层维度/模型大小 (Hidden dimension)
+  hidden_dim: 512
+  # Transformer 内部前馈网络的维度 (Inner dimension of FFN, typically 4*hidden_dim)
+  inner_dim: 1344
+  # 多头注意力机制的头数 (Number of attention heads)
+  num_heads: 16
+  # RoPE (Rotary Position Embedding) 的旋转基数（通常为 10000）
+  theta: 10000.0
+  # 训练设备 (Device for training: 'cuda', 'mps', or 'cpu')
+  device: "cuda"
+  # 模型参数的数据类型 (Data type: 'float32' or 'bfloat16')
+  dtype: "bfloat16"
+
+optimizer:
+  # 学习率 (Learning rate)
+  learning_rate: 3.0e-4
+  # 权重衰减 (Weight decay for AdamW)
+  weight_decay: 1e-2
+  # AdamW 优化器的一阶矩估计衰减率 (Beta1)
+  beta1: 0.9
+  # AdamW 优化器的二阶矩估计衰减率 (Beta2)
+  beta2: 0.999
+  # AdamW 优化器的数值稳定性参数 (Epsilon)
+  eps: 1.0e-8
+
+training:
+  # 批次大小 (Batch size)
+  batch_size: 96
+  # 总训练迭代次数 (Total training iterations)
+  total_iterations: 20000
+  # 学习率预热的迭代次数 (Warmup iterations)
+  warmup_iterations: 1000
+  # 学习率余弦退火周期迭代次数 (Cosine cycle iterations)
+  cosine_cycle_iterations: 20000
+  # 梯度裁剪的最大 L2 范数 (Max L2 norm for gradient clipping)
+  max_l2_norm: 1.0
+  # 模型保存的间隔（迭代次数） (Checkpoint saving interval)
+  checkpoint_interval: 1000
+  # 模型和配置的输出目录 (Output directory)
+  output_dir: "./output_full/"
+  # 训练数据文件路径 (Path to training data .npy file)
+  train_data: "save/data/TS-train.bin"
+  # 验证数据文件路径 (Path to validation data .npy file)
+  val_data: "save/data/owt_train.bin"
+  # 保存检查点的步长（在 `train` 函数中用于判断是否保存检查点）
+  save_step: 500
+  log_step: 50

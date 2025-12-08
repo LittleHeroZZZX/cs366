@@ -243,5 +243,12 @@ def learning_rate_tuning():
     pprint(res)
 
 
+@app.command()
+def train_model(config: str):
+    from src.nn import train
+
+    train.train(config)
+
+
 if __name__ == "__main__":
     app()
