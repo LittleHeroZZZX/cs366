@@ -17,9 +17,11 @@ def find_chunk_boundaries(
     start = time.time()
     chunk_boundaries = []
     file_size = os.path.getsize(file_path)
+    if desize_bytes is not None:
+        desired_num_chunks = file_size // desize_bytes
 
     with open(file_path, "r+b") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-        chunk_size = file_size // desired_num_chunks if desize_bytes is None else desize_bytes
+        chunk_size = file_size // desired_num_chunks
 
         chunk_boundaries.append(0)
 
